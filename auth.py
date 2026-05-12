@@ -11,7 +11,8 @@ import firebase_client as fb
 USER_COOKIE = "bingo_user"
 ADMIN_COOKIE = "bingo_admin"
 COOKIE_MAX_AGE_DAYS = 30
-_COOKIE_SYNC_DELAY = 0.25
+_COOKIE_SYNC_DELAY = 0.4
+_MAX_COOKIE_WAITS = 3
 
 
 def _cookies() -> CookieController:
@@ -28,13 +29,23 @@ def _cookies() -> CookieController:
 
 
 def _wait_for_cookies(controller: CookieController) -> dict:
-    """Force one wait cycle on cold load so cookies sync from the browser."""
+    """Wait for the cookie component to sync from the browser on cold load.
+
+    Streamlit Cloud's cross-origin iframe adds latency, so a single short
+    wait often isn't enough — retry a few times before giving up.
+    """
     cookies = controller.getAll() or {}
-    if cookies or st.session_state.get("_cookie_sync_done"):
+    if cookies:
         st.session_state._cookie_sync_done = True
         return cookies
+    if st.session_state.get("_cookie_sync_done"):
+        return {}
+    waits = st.session_state.get("_cookie_sync_waits", 0)
+    if waits >= _MAX_COOKIE_WAITS:
+        st.session_state._cookie_sync_done = True
+        return {}
+    st.session_state._cookie_sync_waits = waits + 1
     time.sleep(_COOKIE_SYNC_DELAY)
-    st.session_state._cookie_sync_done = True
     st.rerun()
 
 
