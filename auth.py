@@ -8,7 +8,7 @@ from streamlit_cookies_controller import CookieController
 
 import firebase_client as fb
 
-SESSION_COOKIE = "bingo_session"
+USER_COOKIE = "bingo_user"
 ADMIN_COOKIE = "bingo_admin"
 COOKIE_MAX_AGE_DAYS = 30
 _COOKIE_SYNC_DELAY = 0.25
@@ -43,12 +43,10 @@ def current_user() -> str | None:
     if "user" in st.session_state and st.session_state.user:
         return st.session_state.user
     cookies = _wait_for_cookies(_cookies())
-    token = cookies.get(SESSION_COOKIE)
-    if not token:
+    name = (cookies.get(USER_COOKIE) or "").strip()
+    if not name:
         return None
-    name = fb.user_by_session(token)
-    if name:
-        st.session_state.user = name
+    st.session_state.user = name
     return name
 
 
@@ -63,9 +61,9 @@ def is_admin() -> bool:
 
 
 def login_user(name: str) -> None:
-    token = fb.login_or_create_user(name)
+    fb.login_or_create_user(name)
     st.session_state.user = name
-    _cookies().set(SESSION_COOKIE, token, max_age=COOKIE_MAX_AGE_DAYS * 24 * 3600)
+    _cookies().set(USER_COOKIE, name, max_age=COOKIE_MAX_AGE_DAYS * 24 * 3600)
 
 
 def _safe_remove(controller: CookieController, name: str) -> None:
@@ -79,11 +77,8 @@ def _safe_remove(controller: CookieController, name: str) -> None:
 
 
 def logout_user() -> None:
-    name = st.session_state.get("user")
-    if name:
-        fb.clear_session(name)
     st.session_state.pop("user", None)
-    _safe_remove(_cookies(), SESSION_COOKIE)
+    _safe_remove(_cookies(), USER_COOKIE)
 
 
 def login_admin(password: str) -> bool:

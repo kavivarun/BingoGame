@@ -14,7 +14,7 @@ from typing import Any, Iterable
 import firebase_admin
 import streamlit as st
 from firebase_admin import credentials, firestore, storage
-from PIL import Image
+from PIL import Image, ImageOps
 
 TILES_JSON_PATH = Path(__file__).parent / "tiles.json"
 MAX_IMAGE_EDGE = 1024
@@ -239,6 +239,9 @@ def signed_url(path: str) -> str:
 
 def _compress_image(raw: bytes) -> bytes:
     img = Image.open(io.BytesIO(raw))
+    # Bake the EXIF orientation into the pixels so the saved JPEG renders
+    # right-side-up regardless of how the phone was held.
+    img = ImageOps.exif_transpose(img)
     if img.mode in ("RGBA", "P"):
         img = img.convert("RGB")
     w, h = img.size
