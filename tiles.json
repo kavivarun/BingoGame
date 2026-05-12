@@ -1,0 +1,21 @@
+{
+  "round_id": "r1",
+  "tasks": [
+    {"index": 0,  "title": "Sunset selfie",       "description": "Take a selfie with a sunset in the background."},
+    {"index": 1,  "title": "Coffee shop",         "description": "Snap a photo at a local coffee shop."},
+    {"index": 2,  "title": "Cute pet",            "description": "Photo of any animal — yours or a stranger's."},
+    {"index": 3,  "title": "Cook a meal",         "description": "Photo of a home-cooked meal."},
+    {"index": 4,  "title": "Public art",          "description": "Photo of a mural, sculpture, or street art."},
+    {"index": 5,  "title": "Library book",        "description": "Photo of a book you borrowed from a library."},
+    {"index": 6,  "title": "Park bench",          "description": "Photo sitting on a park bench."},
+    {"index": 7,  "title": "Local landmark",      "description": "Photo at a recognizable city landmark."},
+    {"index": 8,  "title": "Try new food",        "description": "Photo of a dish you've never tried before."},
+    {"index": 9,  "title": "Sunrise",             "description": "Photo of a sunrise."},
+    {"index": 10, "title": "Random act of kind",  "description": "Photo evidence of a small act of kindness."},
+    {"index": 11, "title": "Handwritten note",    "description": "Photo of a handwritten note you sent to someone."},
+    {"index": 12, "title": "Group photo",         "description": "Photo with at least 3 friends."},
+    {"index": 13, "title": "Plant a seed",        "description": "Photo of a seed/seedling you've planted."},
+    {"index": 14, "title": "Watch a sunset",      "description": "Photo from a place you watched a sunset (without selfie)."},
+    {"index": 15, "title": "Compliment giver",    "description": "Photo of someone you complimented (with consent)."}
+  ]
+}
