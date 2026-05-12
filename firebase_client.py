@@ -14,6 +14,7 @@ from typing import Any, Iterable
 import firebase_admin
 import streamlit as st
 from firebase_admin import credentials, firestore, storage
+from google.cloud.firestore_v1.base_query import FieldFilter
 from PIL import Image, ImageOps
 
 TILES_JSON_PATH = Path(__file__).parent / "tiles.json"
@@ -111,13 +112,14 @@ def rename_current_round(round_name: str) -> None:
 
 def _delete_collection_where(name: str, field: str, op: str, value: Any, batch_size: int = 100) -> None:
     coll = db().collection(name)
-    docs = list(coll.where(field, op, value).limit(batch_size).stream())
+    flt = FieldFilter(field, op, value)
+    docs = list(coll.where(filter=flt).limit(batch_size).stream())
     while docs:
         batch = db().batch()
         for d in docs:
             batch.delete(d.reference)
         batch.commit()
-        docs = list(coll.where(field, op, value).limit(batch_size).stream())
+        docs = list(coll.where(filter=flt).limit(batch_size).stream())
 
 
 # ---------------------------------------------------------------------------
@@ -172,7 +174,12 @@ def user_by_session(token: str) -> str | None:
     """Return username for a valid session token, or None."""
     if not token:
         return None
-    docs = db().collection("users").where("session_token", "==", token).limit(1).stream()
+    docs = (
+        db().collection("users")
+        .where(filter=FieldFilter("session_token", "==", token))
+        .limit(1)
+        .stream()
+    )
     for d in docs:
         return d.to_dict()["name"]
     return None
@@ -216,7 +223,11 @@ def upload_submission(user: str, tile_index: int, image_bytes: bytes, content_ty
 
 def get_user_submissions(user: str) -> dict[int, dict]:
     round_id = get_round_id()
-    q = db().collection("submissions").where("round_id", "==", round_id).where("user", "==", user)
+    q = (
+        db().collection("submissions")
+        .where(filter=FieldFilter("round_id", "==", round_id))
+        .where(filter=FieldFilter("user", "==", user))
+    )
     out: dict[int, dict] = {}
     for d in q.stream():
         sub = d.to_dict()
@@ -226,7 +237,7 @@ def get_user_submissions(user: str) -> dict[int, dict]:
 
 def list_all_submissions() -> list[dict]:
     round_id = get_round_id()
-    q = db().collection("submissions").where("round_id", "==", round_id)
+    q = db().collection("submissions").where(filter=FieldFilter("round_id", "==", round_id))
     return [d.to_dict() for d in q.stream()]
 
 
@@ -279,15 +290,19 @@ def create_claim(user: str, claim_type: str, line_indices: list[int], line_id: s
 
 def get_user_claims(user: str) -> list[dict]:
     round_id = get_round_id()
-    q = db().collection("claims").where("round_id", "==", round_id).where("user", "==", user)
+    q = (
+        db().collection("claims")
+        .where(filter=FieldFilter("round_id", "==", round_id))
+        .where(filter=FieldFilter("user", "==", user))
+    )
     return [d.to_dict() | {"_id": d.id} for d in q.stream()]
 
 
 def list_claims(status: str | None = None) -> list[dict]:
     round_id = get_round_id()
-    q = db().collection("claims").where("round_id", "==", round_id)
+    q = db().collection("claims").where(filter=FieldFilter("round_id", "==", round_id))
     if status:
-        q = q.where("status", "==", status)
+        q = q.where(filter=FieldFilter("status", "==", status))
     return [d.to_dict() | {"_id": d.id} for d in q.stream()]
 
 

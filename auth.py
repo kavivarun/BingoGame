@@ -60,39 +60,54 @@ def is_admin() -> bool:
     return False
 
 
+def _set_cookie(name: str, value: str, max_age: int) -> None:
+    """Write a cookie that survives Streamlit Cloud's cross-origin iframe.
+
+    Streamlit Cloud serves the app inside a cross-origin frame, so cookies
+    need ``SameSite=None; Secure`` to be allowed by browsers. Localhost is
+    same-origin, but modern browsers still accept ``Secure`` there.
+    """
+    _cookies().set(
+        name,
+        value,
+        max_age=max_age,
+        same_site="none",
+        secure=True,
+    )
+    # Let the cookie-set component message reach the browser before the
+    # caller's st.rerun() tears down the component.
+    time.sleep(0.3)
+
+
 def login_user(name: str) -> None:
     fb.login_or_create_user(name)
     st.session_state.user = name
-    _cookies().set(USER_COOKIE, name, max_age=COOKIE_MAX_AGE_DAYS * 24 * 3600)
+    _set_cookie(USER_COOKIE, name, COOKIE_MAX_AGE_DAYS * 24 * 3600)
 
 
-def _safe_remove(controller: CookieController, name: str) -> None:
-    """Library's remove() does dict.pop without a default and crashes if the
-    cookie isn't in its internal cache. Skip the local-cache pop in that case
-    but still tell the browser to expire the cookie."""
-    try:
-        controller.remove(name)
-    except KeyError:
-        controller.set(name, "", max_age=0)
+def _clear_cookie(name: str) -> None:
+    """Expire a cookie using the same SameSite/Secure attributes used to set it,
+    otherwise the browser may not treat the new Set-Cookie as a replacement."""
+    _set_cookie(name, "", max_age=0)
 
 
 def logout_user() -> None:
     st.session_state.pop("user", None)
-    _safe_remove(_cookies(), USER_COOKIE)
+    _clear_cookie(USER_COOKIE)
 
 
 def login_admin(password: str) -> bool:
     expected = st.secrets["admin"]["password"]
     if password == expected:
         st.session_state.is_admin = True
-        _cookies().set(ADMIN_COOKIE, "1", max_age=COOKIE_MAX_AGE_DAYS * 24 * 3600)
+        _set_cookie(ADMIN_COOKIE, "1", COOKIE_MAX_AGE_DAYS * 24 * 3600)
         return True
     return False
 
 
 def logout_admin() -> None:
     st.session_state.pop("is_admin", None)
-    _safe_remove(_cookies(), ADMIN_COOKIE)
+    _clear_cookie(ADMIN_COOKIE)
 
 
 def render_login_screen() -> None:
