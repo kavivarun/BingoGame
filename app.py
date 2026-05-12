@@ -13,29 +13,55 @@ st.set_page_config(page_title="Bingo", page_icon="🎯", layout="wide")
 st.markdown(bingo_board.GRID_CSS, unsafe_allow_html=True)
 
 
+_NAV_PAGES = ["Board", "Leaderboard"]
+
+
 def _sidebar(user: str | None) -> str:
+    if "nav_page" not in st.session_state:
+        st.session_state.nav_page = "Board"
+
+    pages = list(_NAV_PAGES)
+    if auth.is_admin():
+        pages.append("Admin")
+    if st.session_state.nav_page not in pages:
+        st.session_state.nav_page = pages[0]
+
     with st.sidebar:
         st.markdown("### 🎯 Bingo")
         if user:
             st.success(f"Logged in as **{user}**")
-            if st.button("Logout", use_container_width=True):
-                auth.logout_user()
-                st.rerun()
         if auth.is_admin():
             st.info("Admin mode")
-            if st.button("Admin logout", use_container_width=True):
-                auth.logout_admin()
-                st.rerun()
 
-        options = ["Board", "Leaderboard"]
-        if auth.is_admin():
-            options.append("Admin")
-        page = st.radio("Navigate", options, label_visibility="collapsed")
         st.markdown(
             f"<div class='round-pill'>🎀 <b>{fb.get_round_name()}</b></div>",
             unsafe_allow_html=True,
         )
-    return page
+
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+        for name in pages:
+            is_current = st.session_state.nav_page == name
+            if st.button(
+                name,
+                key=f"nav_{name}",
+                use_container_width=True,
+                type="primary" if is_current else "secondary",
+            ):
+                st.session_state.nav_page = name
+                st.rerun()
+
+        with st.container(key="sidebar_logout"):
+            st.divider()
+            if user and st.button("Logout", key="logout_user", use_container_width=True):
+                auth.logout_user()
+                st.rerun()
+            if auth.is_admin() and st.button(
+                "Admin logout", key="logout_admin", use_container_width=True
+            ):
+                auth.logout_admin()
+                st.rerun()
+
+    return st.session_state.nav_page
 
 
 def main() -> None:

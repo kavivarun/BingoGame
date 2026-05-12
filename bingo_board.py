@@ -1,6 +1,8 @@
 """4x4 grid renderer + upload dialog for the logged-in player."""
 from __future__ import annotations
 
+import html as html_lib
+
 import streamlit as st
 
 import bingo_logic
@@ -167,9 +169,9 @@ h1.gold-header {
     letter-spacing: 0.4px;
 }
 .tile-state {
-    padding: 4px 10px;
+    padding: 2px 7px;
     border-radius: 999px;
-    font-size: 0.72rem;
+    font-size: 0.6rem;
     font-weight: 700;
     color: var(--plum);
 }
@@ -190,10 +192,191 @@ h1.gold-header {
     line-height: 1.2;
 }
 
+/* Info icon + description overlay on empty tiles */
+.tile-info {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1.5px solid var(--pink);
+    color: var(--pink-deep);
+    font-family: Georgia, 'Times New Roman', serif;
+    font-style: italic;
+    font-weight: 800;
+    font-size: 0.78rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: help;
+    z-index: 4;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    user-select: none;
+}
+.tile-info:hover,
+.tile-info:focus {
+    background: var(--pink);
+    color: white;
+    border-color: var(--pink-deep);
+    outline: none;
+}
+
+.tile-desc-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(61, 15, 38, 0.94);
+    color: white;
+    padding: 14px;
+    border-radius: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.18s ease, visibility 0.18s ease;
+    z-index: 3;
+    pointer-events: none;
+}
+.tile-desc-overlay span {
+    font-size: 0.8rem;
+    line-height: 1.4;
+    font-weight: 500;
+    display: -webkit-box;
+    -webkit-line-clamp: 7;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.tile-info:hover ~ .tile-desc-overlay,
+.tile-info:focus ~ .tile-desc-overlay {
+    opacity: 1;
+    visibility: visible;
+}
+
 /* Buttons under tiles */
 div[data-testid="stButton"] > button {
     border-radius: 12px;
     font-weight: 600;
+}
+
+/* Smaller text on the upload/replace photo buttons under each tile. */
+[data-testid="stColumn"]:has(.tile-card) [data-testid="stButton"] > button,
+div[class*="st-key-board_row_"] [data-testid="stButton"] > button {
+    font-size: 0.68rem !important;
+    padding: 2px 6px !important;
+    min-height: 0 !important;
+    line-height: 1.2 !important;
+    height: auto !important;
+}
+[data-testid="stColumn"]:has(.tile-card) [data-testid="stButton"] > button p,
+[data-testid="stColumn"]:has(.tile-card) [data-testid="stButton"] > button div,
+div[class*="st-key-board_row_"] [data-testid="stButton"] > button p,
+div[class*="st-key-board_row_"] [data-testid="stButton"] > button div {
+    font-size: 0.68rem !important;
+    margin: 0 !important;
+    line-height: 1.2 !important;
+}
+@media (max-width: 640px) {
+    [data-testid="stColumn"]:has(.tile-card) [data-testid="stButton"] > button,
+    div[class*="st-key-board_row_"] [data-testid="stButton"] > button {
+        font-size: 0.5rem !important;
+        padding: 2px 3px !important;
+    }
+    [data-testid="stColumn"]:has(.tile-card) [data-testid="stButton"] > button p,
+    [data-testid="stColumn"]:has(.tile-card) [data-testid="stButton"] > button div,
+    div[class*="st-key-board_row_"] [data-testid="stButton"] > button p,
+    div[class*="st-key-board_row_"] [data-testid="stButton"] > button div {
+        font-size: 0.55rem !important;
+    }
+}
+
+/* Pin the logout group to the bottom of the sidebar viewport when there is room. */
+section[data-testid="stSidebar"] div[class*="st-key-sidebar_logout"] {
+    position: sticky;
+    bottom: 0;
+    margin-top: 12px;
+}
+
+/* Force a 4-wide grid on every screen size for the board rows. */
+div[class*="st-key-board_row_"] [data-testid="stHorizontalBlock"] {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 6px;
+}
+div[class*="st-key-board_row_"] [data-testid="stColumn"] {
+    flex: 1 1 0 !important;
+    width: 25% !important;
+    min-width: 0 !important;
+}
+
+/* Compact tile content on phones. */
+@media (max-width: 640px) {
+    .board-title h2 { font-size: 1.15rem; }
+    .board-title .round-name { font-size: 0.8rem; }
+
+    .tile-card { border-radius: 12px; border-width: 1.5px; }
+    .tile-empty-body {
+        padding: 6px;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+    }
+    .tile-empty-body .num { font-size: 0.5rem; letter-spacing: 0.3px; }
+    .tile-empty-body .title {
+        font-size: 0.65rem;
+        line-height: 1.1;
+        margin-top: 2px;
+    }
+    .tile-empty-body .desc { display: none; }
+    .tile-empty-body .cam { display: none; }
+
+    .tile-info {
+        width: 16px;
+        height: 16px;
+        font-size: 0.55rem;
+        top: 4px;
+        right: 4px;
+        border-width: 1px;
+    }
+    .tile-desc-overlay { padding: 5px; }
+    .tile-desc-overlay span {
+        font-size: 0.55rem;
+        line-height: 1.25;
+        -webkit-line-clamp: 6;
+    }
+
+    .tile-badge { padding: 2px 5px; font-size: 0.5rem; letter-spacing: 0; }
+    .tile-state { padding: 2px 5px; font-size: 0.5rem; }
+    .tile-overlay-top { top: 4px; left: 4px; right: 4px; gap: 2px; }
+    .tile-overlay-bottom { padding: 10px 5px 3px; font-size: 0.55rem; }
+
+    /* Hide the (invisible) overlay button label entirely on touch — taps still work. */
+    div[class*="st-key-tile_"] div[data-testid="stButton"] { height: 100%; }
+
+    /* Shrink the upload-photo dialog UI on mobile. */
+    [data-testid="stFileUploader"] label { font-size: 0.8rem; }
+    [data-testid="stFileUploader"] section,
+    [data-testid="stFileUploaderDropzone"] {
+        padding: 0.4rem 0.6rem;
+        min-height: auto;
+    }
+    [data-testid="stFileUploaderDropzoneInstructions"] { padding: 0; }
+    [data-testid="stFileUploaderDropzoneInstructions"] > div,
+    [data-testid="stFileUploaderDropzoneInstructions"] span {
+        font-size: 0.7rem;
+        line-height: 1.2;
+    }
+    [data-testid="stFileUploaderDropzoneInstructions"] small {
+        font-size: 0.6rem;
+    }
+    [data-testid="stFileUploader"] button {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.6rem;
+    }
 }
 </style>
 """
@@ -249,13 +432,14 @@ def render_board(user: str) -> None:
     )
 
     for row in range(4):
-        cols = st.columns(4, gap="small")
-        for col in range(4):
-            idx = row * 4 + col
-            tile = tiles[idx]
-            state = _tile_state(idx, submissions, claims)
-            with cols[col]:
-                _render_tile(user, tile, state, submissions.get(idx))
+        with st.container(key=f"board_row_{row}"):
+            cols = st.columns(4, gap="small")
+            for col in range(4):
+                idx = row * 4 + col
+                tile = tiles[idx]
+                state = _tile_state(idx, submissions, claims)
+                with cols[col]:
+                    _render_tile(user, tile, state, submissions.get(idx))
 
 
 _STATE_LABELS = {
@@ -267,12 +451,13 @@ _STATE_LABELS = {
 
 def _render_tile(user: str, tile: dict, state: str, submission: dict | None) -> None:
     idx = tile["index"]
+    desc = html_lib.escape(tile["description"])
 
     if submission:
         url = fb.signed_url(submission["image_path"])
         state_class = state if state in _STATE_LABELS else "uploaded"
         state_label = _STATE_LABELS[state_class]
-        html = (
+        tile_html = (
             f'<div class="tile-card {state}">'
             f'  <img class="tile-photo" src="{url}" alt="tile {idx}" />'
             f'  <div class="tile-overlay-top">'
@@ -283,45 +468,40 @@ def _render_tile(user: str, tile: dict, state: str, submission: dict | None) -> 
             f'</div>'
         )
     else:
-        html = (
+        tile_html = (
             f'<div class="tile-card empty">'
+            f'  <span class="tile-info" tabindex="0">i</span>'
+            f'  <div class="tile-desc-overlay"><span>{desc}</span></div>'
             f'  <div class="tile-empty-body">'
             f'    <div>'
             f'      <div class="num">TILE #{idx + 1}</div>'
             f'      <div class="title">{tile["title"]}</div>'
-            f'      <div class="desc">{tile["description"]}</div>'
             f'    </div>'
             f'    <div class="cam">📷 Tap below to upload</div>'
             f'  </div>'
             f'</div>'
         )
-    st.markdown(html, unsafe_allow_html=True)
+    st.markdown(tile_html, unsafe_allow_html=True)
 
     label = "Replace photo" if submission else "Upload photo"
     if st.button(label, key=f"open_{idx}", use_container_width=True):
-        st.session_state[f"dialog_open_{idx}"] = True
+        st.session_state.open_dialog_idx = idx
 
-    if st.session_state.get(f"dialog_open_{idx}"):
+    if st.session_state.get("open_dialog_idx") == idx:
         _upload_dialog(user, tile)
 
 
-@st.dialog("Upload proof")
 def _upload_dialog(user: str, tile: dict) -> None:
     idx = tile["index"]
-    st.markdown(f"### #{idx + 1} · {tile['title']}")
-    st.caption(tile["description"])
 
-    tab_cam, tab_file = st.tabs(["📷 Camera", "🖼️ Gallery"])
-    image_bytes: bytes | None = None
-    content_type = "image/jpeg"
+    @st.dialog(f"Upload — Tile #{idx + 1}")
+    def _impl() -> None:
+        st.markdown(f"### {tile['title']}")
+        st.caption(tile["description"])
 
-    with tab_cam:
-        cam = st.camera_input("Take a photo", key=f"cam_{idx}")
-        if cam is not None:
-            image_bytes = cam.getvalue()
-            content_type = cam.type or "image/jpeg"
+        image_bytes: bytes | None = None
+        content_type = "image/jpeg"
 
-    with tab_file:
         up = st.file_uploader(
             "Choose an image",
             type=["jpg", "jpeg", "png", "webp"],
@@ -332,12 +512,14 @@ def _upload_dialog(user: str, tile: dict) -> None:
             content_type = up.type or "image/jpeg"
             st.image(image_bytes, caption="Preview", use_container_width=True)
 
-    col_a, col_b = st.columns(2)
-    if col_a.button("Submit", type="primary", disabled=image_bytes is None, key=f"submit_{idx}"):
-        fb.upload_submission(user, idx, image_bytes, content_type)
-        st.session_state[f"dialog_open_{idx}"] = False
-        fb.signed_url.clear()
-        st.rerun()
-    if col_b.button("Cancel", key=f"cancel_{idx}"):
-        st.session_state[f"dialog_open_{idx}"] = False
-        st.rerun()
+        col_a, col_b = st.columns(2)
+        if col_a.button("Submit", type="primary", disabled=image_bytes is None, key=f"submit_{idx}"):
+            fb.upload_submission(user, idx, image_bytes, content_type)
+            st.session_state.open_dialog_idx = None
+            fb.signed_url.clear()
+            st.rerun()
+        if col_b.button("Cancel", key=f"cancel_{idx}"):
+            st.session_state.open_dialog_idx = None
+            st.rerun()
+
+    _impl()
