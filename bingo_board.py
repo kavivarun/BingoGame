@@ -2,11 +2,27 @@
 from __future__ import annotations
 
 import html as html_lib
+import io
 
 import streamlit as st
+from PIL import Image, ImageOps
 
 import bingo_logic
 import firebase_client as fb
+
+
+def _oriented_preview(raw: bytes) -> bytes:
+    """Bake EXIF orientation into pixels so the preview isn't sideways."""
+    try:
+        img = Image.open(io.BytesIO(raw))
+        img = ImageOps.exif_transpose(img)
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=85)
+        return buf.getvalue()
+    except Exception:
+        return raw
 
 GRID_CSS = """
 <style>
@@ -510,7 +526,7 @@ def _upload_dialog(user: str, tile: dict) -> None:
         if up is not None:
             image_bytes = up.getvalue()
             content_type = up.type or "image/jpeg"
-            st.image(image_bytes, caption="Preview", use_container_width=True)
+            st.image(_oriented_preview(image_bytes), caption="Preview", use_container_width=True)
 
         col_a, col_b = st.columns(2)
         if col_a.button("Submit", type="primary", disabled=image_bytes is None, key=f"submit_{idx}"):
