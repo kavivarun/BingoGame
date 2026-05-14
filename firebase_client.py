@@ -52,6 +52,7 @@ def bucket():
 # Game state
 # ---------------------------------------------------------------------------
 
+@st.cache_data(ttl=30, show_spinner=False)
 def get_game_state() -> dict:
     doc = db().collection("game_state").document("current").get()
     if doc.exists:
@@ -100,6 +101,7 @@ def reset_game(round_name: str | None = None) -> tuple[str, str]:
         "started_at": datetime.now(timezone.utc),
         "reset_count": new_count,
     })
+    get_game_state.clear()
     return new_round, new_name
 
 
@@ -108,6 +110,7 @@ def rename_current_round(round_name: str) -> None:
     if not name:
         return
     db().collection("game_state").document("current").update({"round_name": name})
+    get_game_state.clear()
 
 
 def _delete_collection_where(name: str, field: str, op: str, value: Any, batch_size: int = 100) -> None:
@@ -126,19 +129,24 @@ def _delete_collection_where(name: str, field: str, op: str, value: Any, batch_s
 # Tiles
 # ---------------------------------------------------------------------------
 
-def bootstrap_tiles() -> None:
-    """If tiles/current doesn't exist, seed it from tiles.json."""
-    ref = db().collection("tiles").document("current")
-    if ref.get().exists:
-        return
-    data = json.loads(TILES_JSON_PATH.read_text(encoding="utf-8"))
-    ref.set(data)
-
-
+@st.cache_data(ttl=300, show_spinner=False)
 def get_tiles() -> list[dict]:
-    bootstrap_tiles()
-    doc = db().collection("tiles").document("current").get()
-    return doc.to_dict()["tasks"]
+    """Tiles rarely change — cache for 5 minutes (shared across sessions).
+
+    Also seeds from ``tiles.json`` on first run.
+    """
+    ref = db().collection("tiles").document("current")
+    snap = ref.get()
+    if not snap.exists:
+        data = json.loads(TILES_JSON_PATH.read_text(encoding="utf-8"))
+        ref.set(data)
+        return data["tasks"]
+    return snap.to_dict()["tasks"]
+
+
+def bootstrap_tiles() -> None:
+    """Kept for backwards-compat; primes the cache so first board render is fast."""
+    get_tiles()
 
 
 def save_tiles(tasks: list[dict]) -> None:
@@ -146,6 +154,7 @@ def save_tiles(tasks: list[dict]) -> None:
         "round_id": get_round_id(),
         "tasks": tasks,
     })
+    get_tiles.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +217,9 @@ def upload_submission(user: str, tile_index: int, image_bytes: bytes, content_ty
     path = f"games/{round_id}/{user}/tile_{tile_index}.jpg"
 
     blob = bucket().blob(path)
+    # Short browser cache so a re-upload (same path) becomes visible quickly,
+    # without forcing every render to refetch the bytes.
+    blob.cache_control = "public, max-age=60"
     blob.upload_from_string(compressed, content_type="image/jpeg")
 
     data = {
@@ -241,9 +253,10 @@ def list_all_submissions() -> list[dict]:
     return [d.to_dict() for d in q.stream()]
 
 
-@st.cache_data(show_spinner=False, ttl=300)
+@st.cache_data(show_spinner=False, ttl=1800, max_entries=1024)
 def signed_url(path: str) -> str:
-    """Short-lived signed URL for displaying an image."""
+    """Signed URL for displaying an image. Cached process-wide for 30 minutes
+    (URLs expire at 60 minutes, so we always serve a usable URL)."""
     blob = bucket().blob(path)
     return blob.generate_signed_url(expiration=timedelta(hours=1), version="v4", method="GET")
 
@@ -324,7 +337,12 @@ def mark_claim_seen(claim_id: str) -> None:
 _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
-def line_ids_already_claimed(user: str) -> set[tuple[str, str]]:
+def line_ids_already_claimed(
+    user: str,
+    *,
+    claims: list[dict] | None = None,
+    submissions: dict[int, dict] | None = None,
+) -> set[tuple[str, str]]:
     """Return {(type, line_id)} for claims that should block re-detection.
 
     Pending and verified claims always block. A rejected claim only blocks
@@ -333,9 +351,14 @@ def line_ids_already_claimed(user: str) -> set[tuple[str, str]]:
     than the claim's ``verified_at``. Once a fresher submission exists, the
     line becomes claimable again and ``create_claim`` overwrites the
     rejected doc with a fresh pending one.
+
+    Pass pre-fetched ``claims`` / ``submissions`` to avoid duplicate Firestore
+    reads when the caller already has them.
     """
-    claims = get_user_claims(user)
-    submissions = get_user_submissions(user)
+    if claims is None:
+        claims = get_user_claims(user)
+    if submissions is None:
+        submissions = get_user_submissions(user)
     blocked: set[tuple[str, str]] = set()
     for c in claims:
         status = c.get("status")

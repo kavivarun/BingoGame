@@ -441,14 +441,23 @@ def render_board(user: str) -> None:
 
     completed = set(submissions.keys())
     if completed:
-        existing = fb.line_ids_already_claimed(user)
+        existing = fb.line_ids_already_claimed(user, claims=claims, submissions=submissions)
         new_lines = bingo_logic.detect_new_lines(completed, existing)
         for line in new_lines:
             fb.create_claim(user, line.type, list(line.indices), line.line_id)
-        if new_lines:
-            claims = fb.get_user_claims(user)
-            for line in new_lines:
-                st.toast(f"🎉 New {line.type} bingo submitted for verification!", icon="🎯")
+            # Reflect the new pending claim locally so _tile_state paints the
+            # row as "pending" without a second get_user_claims round-trip.
+            claims.append({
+                "user": user,
+                "type": line.type,
+                "line_id": line.line_id,
+                "line_indices": list(line.indices),
+                "status": "pending",
+                "verified_at": None,
+                "verified_by": None,
+            })
+        for line in new_lines:
+            st.toast(f"🎉 New {line.type} bingo submitted for verification!", icon="🎯")
 
     st.markdown(
         f"""
@@ -557,7 +566,6 @@ def _upload_dialog(user: str, tile: dict) -> None:
         if col_a.button("Submit", type="primary", disabled=image_bytes is None, key=f"submit_{idx}"):
             fb.upload_submission(user, idx, image_bytes, content_type)
             st.session_state.open_dialog_idx = None
-            fb.signed_url.clear()
             st.rerun()
         if col_b.button("Cancel", key=f"cancel_{idx}"):
             st.session_state.open_dialog_idx = None
