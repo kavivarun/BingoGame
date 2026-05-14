@@ -1,4 +1,5 @@
 streamlit>=1.31
 firebase-admin>=6.4
 streamlit-cookies-controller>=0.0.4
+streamlit-autorefresh>=1.0.1
 Pillow>=10.0

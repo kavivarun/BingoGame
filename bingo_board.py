@@ -6,9 +6,12 @@ import io
 
 import streamlit as st
 from PIL import Image, ImageOps
+from streamlit_autorefresh import st_autorefresh
 
 import bingo_logic
 import firebase_client as fb
+
+_BOARD_POLL_MS = 30_000
 
 
 def _oriented_preview(raw: bytes) -> bytes:
@@ -120,6 +123,10 @@ h1.gold-header {
     border-color: var(--gold);
     box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.35), 0 6px 18px rgba(236, 72, 153, 0.25);
 }
+.tile-card.rejected {
+    border-color: #DC2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.30), 0 4px 12px rgba(220, 38, 38, 0.20);
+}
 
 .tile-card img.tile-photo {
     width: 100%;
@@ -194,6 +201,7 @@ h1.gold-header {
 .tile-state.uploaded { background: var(--gold-soft); color: var(--pink-deep); }
 .tile-state.pending  { background: var(--gold-bright); color: var(--plum); }
 .tile-state.verified { background: var(--gold); color: white; box-shadow: 0 2px 6px rgba(212,175,55,0.5); }
+.tile-state.rejected { background: #DC2626; color: white; box-shadow: 0 2px 6px rgba(220, 38, 38, 0.5); }
 
 .tile-overlay-bottom {
     position: absolute;
@@ -405,15 +413,31 @@ def _tile_state(idx: int, submissions: dict[int, dict], claims: list[dict]) -> s
     in_pending = any(c["status"] == "pending" and idx in c["line_indices"] for c in claims)
     if in_pending:
         return "pending"
+    in_rejected = any(c["status"] == "rejected" and idx in c["line_indices"] for c in claims)
+    if in_rejected:
+        return "rejected"
     if idx in submissions:
         return "uploaded"
     return "empty"
 
 
 def render_board(user: str) -> None:
+    # Poll for claim status changes; skip while an upload dialog is open so the
+    # in-flight file_uploader state isn't disrupted by a forced rerun.
+    if st.session_state.get("open_dialog_idx") is None:
+        st_autorefresh(interval=_BOARD_POLL_MS, key="board_poll")
+
     tiles = fb.get_tiles()
     submissions = fb.get_user_submissions(user)
     claims = fb.get_user_claims(user)
+
+    for c in claims:
+        if c.get("status") == "rejected" and c.get("seen_by_user", True) is False:
+            st.toast(
+                f"Your {c['type']} bingo was rejected — tap that tile to re-upload!",
+                icon="❌",
+            )
+            fb.mark_claim_seen(c["_id"])
 
     completed = set(submissions.keys())
     if completed:
@@ -462,6 +486,7 @@ _STATE_LABELS = {
     "uploaded": "✓ Uploaded",
     "pending":  "⏳ Pending",
     "verified": "🏆 Verified",
+    "rejected": "✗ Rejected",
 }
 
 

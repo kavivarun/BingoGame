@@ -307,13 +307,48 @@ def list_claims(status: str | None = None) -> list[dict]:
 
 
 def verify_claim(claim_id: str, approve: bool, admin_label: str = "admin") -> None:
-    db().collection("claims").document(claim_id).update({
+    payload: dict[str, Any] = {
         "status": "verified" if approve else "rejected",
         "verified_at": datetime.now(timezone.utc),
         "verified_by": admin_label,
-    })
+    }
+    if not approve:
+        payload["seen_by_user"] = False
+    db().collection("claims").document(claim_id).update(payload)
+
+
+def mark_claim_seen(claim_id: str) -> None:
+    db().collection("claims").document(claim_id).update({"seen_by_user": True})
+
+
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
 def line_ids_already_claimed(user: str) -> set[tuple[str, str]]:
-    """Return {(type, line_id)} for claims the user already has (any status)."""
-    return {(c["type"], c["line_id"]) for c in get_user_claims(user)}
+    """Return {(type, line_id)} for claims that should block re-detection.
+
+    Pending and verified claims always block. A rejected claim only blocks
+    while the user hasn't re-uploaded any tile in the line — i.e., no
+    submission for any ``idx`` in ``line_indices`` has ``uploaded_at`` later
+    than the claim's ``verified_at``. Once a fresher submission exists, the
+    line becomes claimable again and ``create_claim`` overwrites the
+    rejected doc with a fresh pending one.
+    """
+    claims = get_user_claims(user)
+    submissions = get_user_submissions(user)
+    blocked: set[tuple[str, str]] = set()
+    for c in claims:
+        status = c.get("status")
+        key = (c["type"], c["line_id"])
+        if status in ("pending", "verified"):
+            blocked.add(key)
+            continue
+        if status == "rejected":
+            rejected_at = c.get("verified_at") or _EPOCH
+            has_fresh = any(
+                (submissions.get(idx, {}).get("uploaded_at") or _EPOCH) > rejected_at
+                for idx in c.get("line_indices", [])
+            )
+            if not has_fresh:
+                blocked.add(key)
+    return blocked

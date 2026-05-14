@@ -4,11 +4,15 @@ from __future__ import annotations
 import json
 
 import streamlit as st
+from streamlit_autorefresh import st_autorefresh
 
 import firebase_client as fb
 
+_ADMIN_POLL_MS = 30_000
+
 
 def render_admin_panel() -> None:
+    st_autorefresh(interval=_ADMIN_POLL_MS, key="admin_poll")
     st.title("🔧 Admin Panel")
     st.caption(f"Current round: **{fb.get_round_name()}** (`{fb.get_round_id()}`)")
 
